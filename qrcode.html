@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>QR – Simulador IA en Salud</title>
+<style>
+  body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,'Helvetica Neue',Arial; margin:0; background:#0b1220; color:#e8f0ff}
+  .wrap{max-width:720px; margin:0 auto; padding:28px; text-align:center}
+  input[type=text]{width:100%; max-width:520px; background:#0f1629; border:1px solid rgba(255,255,255,.1); color:#e8f0ff; padding:12px 14px; border-radius:10px; outline:none}
+  button{margin-top:10px; background:#17213a; border:1px solid rgba(255,255,255,.1); color:#e8f0ff; padding:10px 14px; border-radius:10px; cursor:pointer}
+  #qrcode{margin:18px auto; background:#fff; padding:10px; border-radius:12px; width:fit-content}
+  a{color:#a9c7ff}
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>🔗 Generador de QR</h1>
+    <p>Pega aquí el URL público de tu juego (por ejemplo, el de GitHub Pages o Netlify) y genera un QR para que el curso acceda rápido.</p>
+    <input id="url" type="text" placeholder="https://tusitio.github.io/juego/game_scored.html">
+    <br><button onclick="makeQR()">Generar QR</button>
+    <div id="qrcode"></div>
+    <p><a id="download" href="#" download="qr_simulador.png" style="display:none">Descargar PNG</a></p>
+    <p>Tip: inserta este QR en tu PPT y en el chat de Teams.</p>
+  </div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script>
+let qrobj=null;
+function makeQR(){
+  const el = document.getElementById('qrcode');
+  el.innerHTML = "";
+  const url = document.getElementById('url').value.trim();
+  if(!url){ alert("Pega un URL primero."); return; }
+  qrobj = new QRCode(el, { text: url, width: 256, height: 256 });
+  setTimeout(()=>{
+    const img = el.querySelector('img');
+    if(img){
+      const a = document.getElementById('download');
+      a.href = img.src; a.style.display = 'inline-block';
+    }
+  }, 300);
+}
+</script>
+</body>
+</html>

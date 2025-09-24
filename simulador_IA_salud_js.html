@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Simulador IA en Salud – Versión JavaScript</title>
+<style>
+  :root{
+    --bg:#0b1220; --card:#121a2b; --text:#e8f0ff; --muted:#a9b8d6; --accent:#37d7c6; --warn:#ffb84d; --ok:#7CFFB2;
+  }
+  html,body{height:100%; margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,'Helvetica Neue',Arial; background:linear-gradient(180deg, #0a0f1c 0%, #0b1220 100%); color:var(--text);}
+  .wrap{max-width:860px; margin:0 auto; padding:28px;}
+  .card{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0)); border:1px solid rgba(255,255,255,.08); border-radius:16px; padding:24px; box-shadow:0 10px 30px rgba(0,0,0,.35); backdrop-filter: blur(6px);}
+  h1{font-size:28px; margin:0 0 10px; letter-spacing:.2px}
+  h2{font-size:20px; margin:16px 0 8px; color:var(--muted)}
+  p{line-height:1.55; color:#d7e2fb}
+  .choices{display:grid; grid-template-columns:1fr; gap:12px; margin-top:18px;}
+  .btn{border:1px solid rgba(255,255,255,.1); background:#17213a; color:var(--text); padding:12px 14px; border-radius:10px; cursor:pointer; transition:.15s ease; text-align:left}
+  .btn:hover{transform:translateY(-1px); border-color:var(--accent)}
+  .stats{display:flex; gap:10px; margin:12px 0 18px; flex-wrap:wrap}
+  .chip{background:#10182b; border:1px solid rgba(255,255,255,.06); padding:8px 10px; border-radius:999px; font-size:13px; color:var(--muted)}
+  .muted{color:var(--muted)}
+  .footer{display:flex; gap:10px; margin-top:18px; flex-wrap:wrap}
+  .small{font-size:12px}
+  .ok{color:var(--ok)} .warn{color:var(--warn)}
+  .titlebar{display:flex; justify-content:space-between; align-items:center; margin-bottom:6px}
+  .progress{height:6px; background:#0e1628; border-radius:999px; overflow:hidden}
+  .progress > b{display:block; height:100%; background:linear-gradient(90deg, var(--accent), #7e9cff); width:0%}
+  .hr{height:1px; background:rgba(255,255,255,.08); margin:18px 0}
+  .note{font-size:13px; color:var(--muted)}
+  @media(min-width:720px){ .choices{grid-template-columns:1fr 1fr;} }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="titlebar">
+      <h1>Simulador IA en Salud</h1>
+      <div class="stats">
+        <span class="chip" id="st-surv">Supervivencia: 0</span>
+        <span class="chip" id="st-cost">Costos: 0</span>
+        <span class="chip" id="st-trust">Confianza: 0</span>
+        <span class="chip" id="st-eq">Equidad: 0</span>
+      </div>
+    </div>
+    <div class="progress"><b id="bar"></b></div>
+    <div class="card" id="card">
+      <!-- dynamic -->
+    </div>
+    <div class="footer">
+      <button class="btn" onclick="restart()">⟲ Reiniciar</button>
+      <button class="btn" onclick="toggleNotes()">🗒️ Ver/ocultar notas</button>
+      <span class="note small">Tip: usa esto en Teams y haz que la clase vote con reacciones 👍👎</span>
+    </div>
+  </div>
+
+<script>
+// ----- Story data -----
+const story = {
+  start: "start",
+  nodes: {
+    start: {
+      title: "Ingreso a Urgencias",
+      text: `Paciente 62 años llega a urgencias con dolor torácico y disnea.
+La IA (alerta temprana validada) calcula <b>Riesgo Alto</b> de evento cardíaco en 60 minutos.
+¿Qué decides?`,
+      choices: [
+        { label: "Confiar en la IA y activar protocolo UCI", next: "uci", effects: {survival:+1, cost:+2, trust:+1}, note:"Activaste protocolo UCI basado en IA." },
+        { label: "Esperar evaluación tradicional (médico + exámenes)", next: "eval", effects: {cost:+1}, note:"Optaste por evaluación clínica tradicional sin priorizar IA." },
+        { label: "Pedir segunda opinión de IA (modelo alternativo)", next: "second", note:"Pediste segunda opinión de IA para robustecer la decisión." }
+      ]
+    },
+    uci: {
+      title: "Protocolo UCI activado",
+      text: `Traslado inmediato a UCI y antiplaquetarios. A los 25 min hace un evento, pero se revierte a tiempo.
+<b class="ok">Resultado: sobrevive y queda estable.</b><br><br>
+La UCI está al <b>95% de ocupación</b>. La IA de asignación de camas sugiere mover a un paciente estable a intermedio para dejar cama disponible.`,
+      choices: [
+        { label: "Aceptar sugerencia y reasignar cama", next: "reassign", effects:{equity:+1, trust:+1}, note:"Usaste IA para reasignar camas con reglas de equidad y seguridad." },
+        { label: "Rechazar y mantener camas como están", next: "keep", effects:{trust:-1}, note:"Rechazaste la recomendación de reasignación de camas." }
+      ]
+    },
+    eval: {
+      title: "Evaluación tradicional",
+      text: `Se solicitan marcadores y ECG. Pasa 1 hora por congestión.
+<b class="warn">El paciente sufre un paro antes de llegar a UCI.</b> Reanimación exitosa, pero con complicaciones.
+El jefe de guardia pregunta si integrarás la <b>alerta de IA</b> en el flujo clínico para próximos casos.`,
+      choices: [
+        { label: "Integrar la alerta (notificación prioritaria + checklist)", next: "integrate", effects:{trust:+1}, note:"Acordaste integrar alertas de IA al flujo con checklist y auditoría." },
+        { label: "Seguir caso a caso (decisión ad hoc del médico)", next: "adhoc", effects:{trust:-1}, note:"Dejaste la alerta como informativa sin cambios de proceso." }
+      ]
+    },
+    second: {
+      title: "Segunda opinión de IA",
+      text: `El segundo modelo (independiente) también marca <b>Riesgo Alto</b> y explica variables clave (ECG, edad, troponina, historial).`,
+      choices: [
+        { label: "Activar protocolo UCI", next: "uci" },
+        { label: "Persistir en evaluación tradicional", next: "eval" }
+      ]
+    },
+    reassign: {
+      title: "Reasignación de cama",
+      text: `La reasignación sigue reglas clínicas y evita sesgos (edad/sexo/seguro).
+<b class="ok">Llega otro paciente crítico y la cama disponible salva otra vida.</b>
+Impacto: mejor uso de recursos y menor mortalidad en guardia.`,
+      choices: [{ label: "Continuar", next: "privacy" }]
+    },
+    keep: {
+      title: "Cama ocupada",
+      text: `Se satura la UCI. Un paciente crítico espera más de 90 minutos.
+<b class="warn">Impacto: empeora la congestión y la experiencia del paciente.</b>`,
+      choices: [{ label: "Continuar", next: "privacy" }]
+    },
+    integrate: {
+      title: "Alerta integrada al flujo",
+      text: `Se configura un protocolo: <b>alerta → verificación clínica → acción</b>. Además, se medirá precisión y tiempos.`,
+      choices: [{ label: "Continuar", next: "privacy" }]
+    },
+    adhoc: {
+      title: "Caso a caso",
+      text: `Las alertas se ignoran con frecuencia y la precisión aparente cae por <b>sesgo de implementación</b>.`,
+      choices: [{ label: "Continuar", next: "privacy" }]
+    },
+    privacy: {
+      title: "Privacidad y monitoreo",
+      text: `Un comité plantea políticas de <b>privacidad</b> y <b>vigilancia del modelo</b>.
+Proponen registrar datos mínimos, anonimizar y monitorear sesgos (por género/edad/seguro). ¿Qué adoptas?`,
+      choices: [
+        { label: "Privacidad por diseño + monitoreo continuo del modelo", next: "pstrong", effects:{equity:+1, trust:+1}, note:"Adoptaste privacidad por diseño y monitoreo de sesgos." },
+        { label: "Solo cumplir mínimo legal (sin monitoreo activo)", next: "pmin", effects:{trust:-1}, note:"Cumplimiento mínimo; no se detectan sesgos a tiempo." }
+      ]
+    },
+    pstrong: {
+      title: "Ajuste del modelo",
+      text: `Se detecta que el modelo subestima riesgo en mujeres &lt;55. Se ajusta umbral y mejora el desempeño.`,
+      choices: [{ label: "Ver resultados", next: "results" }]
+    },
+    pmin: {
+      title: "Auditoría externa",
+      text: `Mes después, auditoría externa encuentra disparidades; cae la confianza institucional.`,
+      choices: [{ label: "Ver resultados", next: "results" }]
+    },
+    results: {
+      title: "Resultados del turno",
+      text: "", // built at runtime
+      choices: [
+        { label: "⟲ Reiniciar simulación", next: "start", reset:true },
+        { label: "Lecciones finales", next: "lessons" }
+      ]
+    },
+    lessons: {
+      title: "Lecciones clave",
+      text: `<ul>
+<li><b>IA + flujo clínico</b> = impacto real.</li>
+<li>Gestión de <b>capacidad hospitalaria</b> con IA puede salvar vidas.</li>
+<li><b>Privacidad por diseño</b> y auditoría reducen sesgos y sostienen confianza.</li>
+<li>La sostenibilidad exige equilibrar innovación, financiamiento y misión social.</li>
+</ul>`,
+      choices: [{ label: "⟲ Reiniciar", next: "start", reset:true }]
+    }
+  }
+};
+
+// ----- State -----
+let state, steps;
+function initState(){
+  state = { survival:0, cost:0, trust:0, equity:0, notes:[] };
+  steps = 0;
+}
+function restart(){ initState(); go(story.start); }
+function toggleNotes(){
+  const n = document.querySelector("#notes");
+  if(!n) return;
+  n.style.display = (n.style.display === "none") ? "block" : "none";
+}
+
+// ----- Renderer -----
+function go(id){
+  const node = story.nodes[id];
+  steps++;
+  // progress bar (max 8 approx)
+  const pct = Math.min(100, Math.round((steps-1)/8*100));
+  document.querySelector("#bar").style.width = pct + "%";
+
+  // Build body
+  let html = `<h2>${node.title}</h2><p>${node.text}</p>`;
+
+  // If results node, build dynamic summary
+  if(id === "results"){
+    html = `<h2>${node.title}</h2>`;
+    html += `<p><b>Supervivencia:</b> ${state.survival} &nbsp; <b>Costos:</b> ${state.cost} &nbsp; <b>Confianza:</b> ${state.trust} &nbsp; <b>Equidad:</b> ${state.equity}</p>`;
+    let interp = "";
+    interp += (state.survival>=1) ? "✅ <b>Impacto clínico positivo</b>: priorizaste decisiones oportunas.<br>" :
+                                    "⚠️ <b>Riesgo clínico</b>: las demoras afectaron el resultado.<br>";
+    interp += (state.trust>=1) ? "✅ <b>Gobernanza</b>: integraste IA al flujo y generaste confianza.<br>" :
+                                 "⚠️ <b>Adopción</b>: sin integración, la IA pierde valor.<br>";
+    interp += (state.equity>=1) ? "✅ <b>Equidad</b>: medidas para reducir sesgos y priorizar por necesidad.<br>" :
+                                  "⚠️ <b>Equidad</b>: sin monitoreo, pueden surgir disparidades.<br>";
+    html += `<p>${interp}</p>`;
+    if(state.notes.length){
+      html += `<div id="notes" class="hr" style="display:block"></div><h2>Notas de decisiones</h2><ul id="notesList"></ul>`;
+      setTimeout(()=>{
+        const list = document.querySelector("#notesList");
+        list.innerHTML = state.notes.map(n=>`<li class="muted">${n}</li>`).join("");
+      },0);
+    }
+  }
+
+  // Render
+  const card = document.querySelector("#card");
+  card.innerHTML = html;
+
+  // Choices
+  const block = document.createElement("div");
+  block.className = "choices";
+  node.choices.forEach(ch => {
+    const btn = document.createElement("button");
+    btn.className = "btn";
+    btn.textContent = ch.label;
+    btn.onclick = () => {
+      if(ch.reset){ restart(); return; }
+      // apply effects
+      if(ch.effects){
+        for(const k in ch.effects){ state[k] = (state[k]||0) + ch.effects[k]; }
+      }
+      if(ch.note) state.notes.push(ch.note);
+      // update small stats
+      updateStats();
+      go(ch.next);
+    };
+    block.appendChild(btn);
+  });
+  card.appendChild(block);
+}
+
+function updateStats(){
+  document.querySelector("#st-surv").textContent = "Supervivencia: " + state.survival;
+  document.querySelector("#st-cost").textContent  = "Costos: " + state.cost;
+  document.querySelector("#st-trust").textContent = "Confianza: " + state.trust;
+  document.querySelector("#st-eq").textContent    = "Equidad: " + state.equity;
+}
+
+// boot
+initState();
+updateStats();
+go(story.start);
+</script>
+</body>
+</html>

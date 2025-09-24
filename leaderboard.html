@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Ranking – Simulador IA en Salud</title>
+<style>
+  body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,'Helvetica Neue',Arial; margin:0; background:#0b1220; color:#e8f0ff}
+  .wrap{max-width:900px; margin:0 auto; padding:28px}
+  h1{font-size:26px; margin:0 0 14px}
+  table{width:100%; border-collapse:collapse; background:#10182b; border-radius:12px; overflow:hidden}
+  th,td{padding:12px 10px; border-bottom:1px solid rgba(255,255,255,.06); font-size:14px}
+  th{background:#0f1629; text-align:left; color:#a9b8d6}
+  tr:last-child td{border-bottom:none}
+  .muted{color:#a9b8d6}
+  .row{display:flex; gap:8px; align-items:center; margin:8px 0 16px}
+  input[type=text]{background:#0f1629; border:1px solid rgba(255,255,255,.1); color:#e8f0ff; padding:10px 12px; border-radius:10px; outline:none; width:260px}
+  button{background:#17213a; border:1px solid rgba(255,255,255,.1); color:#e8f0ff; padding:10px 12px; border-radius:10px; cursor:pointer}
+  a{color:#a9c7ff}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>🏆 Ranking – Simulador IA en Salud</h1>
+  <div class="row">
+    <input id="code" type="text" placeholder="Filtro por alias (opcional)" />
+    <button onclick="loadData()">Actualizar</button>
+    <a href="./game_scored.html">Volver al juego</a>
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th>#</th><th>Alias</th><th>Supervivencia</th><th>Confianza</th><th>Equidad</th><th>Costos</th><th>Fecha</th>
+      </tr>
+    </thead>
+    <tbody id="rows"></tbody>
+  </table>
+  <p class="muted">Orden: Supervivencia (desc), Confianza (desc), Equidad (desc), Costos (asc).</p>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
+<script>
+const firebaseConfig = {
+  apiKey: "PASTE_YOUR_KEY",
+  authDomain: "PASTE.firebaseapp.com",
+  projectId: "PASTE",
+  storageBucket: "PASTE.appspot.com",
+  messagingSenderId: "PASTE",
+  appId: "PASTE"
+};
+let db=null;
+try{ const app = firebase.initializeApp(firebaseConfig); db = firebase.firestore(); }
+catch(e){ alert("Configura Firebase para ver el ranking."); }
+
+async function loadData(){
+  if(!db){ return; }
+  const aliasFilter = document.getElementById('code').value.trim().toLowerCase();
+  const snap = await db.collection("runs").limit(200).get();
+  const arr = [];
+  snap.forEach(doc => arr.push(doc.data()));
+  arr.sort((a,b)=> (b.survival-a.survival) || (b.trust-a.trust) || (b.equity-a.equity) || (a.cost-b.cost));
+  const rows = arr
+    .filter(r => !aliasFilter || (r.name||'').toLowerCase().includes(aliasFilter))
+    .map((r,i)=> `<tr>
+      <td>${i+1}</td>
+      <td>${(r.name||'').replace(/[<>&]/g,'')}</td>
+      <td>${r.survival}</td>
+      <td>${r.trust}</td>
+      <td>${r.equity}</td>
+      <td>${r.cost}</td>
+      <td>${(r.createdAt||'').slice(0,19).replace('T',' ')}</td>
+    </tr>`).join("");
+  document.getElementById('rows').innerHTML = rows || `<tr><td colspan="7">Sin datos aún.</td></tr>`;
+}
+loadData();
+</script>
+</body>
+</html>
